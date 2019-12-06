@@ -200,6 +200,29 @@ test('`monitor npm-package`', async (t) => {
   t.notOk(req.body.meta.prePruneDepCount, "doesn't send meta.prePruneDepCount");
 });
 
+test('`monitor npm-package with --all-projects has not effect`', async (t) => {
+  // TODO: monitor --all-projects is not supported initially
+  chdirWorkspaces();
+  await cli.monitor('npm-package', {
+    'all-projects': true,
+  });
+  const req = server.popRequest();
+  const pkg = req.body.package;
+  t.equal(req.method, 'PUT', 'makes PUT request');
+  t.equal(
+    req.headers['x-snyk-cli-version'],
+    versionNumber,
+    'sends version number',
+  );
+  t.match(req.url, '/monitor/npm', 'puts at correct url');
+  t.ok(pkg.dependencies.debug, 'dependency');
+  t.notOk(req.body.targetFile, 'doesnt send the targetFile');
+  t.notOk(pkg.dependencies['object-assign'], 'no dev dependency');
+  t.notOk(pkg.from, 'no "from" array on root');
+  t.notOk(pkg.dependencies.debug.from, 'no "from" array on dep');
+  t.notOk(req.body.meta.prePruneDepCount, "doesn't send meta.prePruneDepCount");
+});
+
 test('`monitor npm-out-of-sync graph monitor`', async (t) => {
   chdirWorkspaces();
   await cli.monitor('npm-out-of-sync-graph', {

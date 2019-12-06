@@ -31,6 +31,12 @@ const DETECTABLE_FILES: string[] = [
   'Podfile.lock',
 ];
 
+export const AUTO_DETECTABLE_FILES: string[] = [
+  'package-lock.json',
+  'yarn.lock',
+  'Gemfile.lock',
+];
+
 // when file is specified with --file, we look it up here
 const DETECTABLE_PACKAGE_MANAGERS: {
   [name: string]: SupportedPackageManagers;
@@ -73,7 +79,7 @@ export function isPathToPackageFile(path) {
   return false;
 }
 
-export function detectPackageManager(root, options) {
+export function detectPackageManager(root: string, options) {
   // If user specified a package manager let's use it.
   if (options.packageManager) {
     return options.packageManager;
@@ -142,7 +148,9 @@ export function detectPackageFile(root) {
   debug('no package file found in ' + root);
 }
 
-export function detectPackageManagerFromFile(file) {
+export function detectPackageManagerFromFile(
+  file: string,
+): SupportedPackageManagers {
   let key = pathLib.basename(file);
 
   // TODO: fix this to use glob matching instead

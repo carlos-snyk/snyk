@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import pathUtil = require('path');
 import moduleToObject = require('snyk-module');
 import * as depGraphLib from '@snyk/dep-graph';
+import * as cliInterface from '@snyk/cli-interface';
 import analytics = require('../analytics');
 import * as config from '../config';
 import detect = require('../../lib/detect');
@@ -16,6 +17,7 @@ import common = require('./common');
 import { DepTree, TestOptions } from '../types';
 import * as projectMetadata from '../project-metadata';
 import { GitTarget } from '../project-metadata/types';
+import { detectPackageManagerFromFile } from '../../lib/detect';
 
 import {
   convertTestDepGraphResultToLegacy,
@@ -23,6 +25,7 @@ import {
   LegacyVulnApiResult,
   TestDepGraphResponse,
   DockerIssue,
+  TestResult,
 } from './legacy';
 import { Options } from '../types';
 import {
@@ -36,6 +39,8 @@ import { SupportedPackageManagers } from '../package-managers';
 import { countPathsToGraphRoot, pruneGraph } from '../prune';
 import { legacyPlugin as pluginApi } from '@snyk/cli-interface';
 import { AuthFailedError } from '../errors/authentication-failed-error';
+import { find } from '../find-files';
+import { AUTO_DETECTABLE_FILES } from '../detect';
 
 // tslint:disable-next-line:no-var-requires
 const debug = require('debug')('snyk');
@@ -71,17 +76,20 @@ interface Payload {
 }
 
 async function runTest(
-  packageManager: SupportedPackageManagers,
+  packageManager: SupportedPackageManagers | undefined,
   root: string,
   options: Options & TestOptions,
-): Promise<LegacyVulnApiResult[]> {
-  const results: LegacyVulnApiResult[] = [];
+): Promise<TestResult[]> {
+  const results: TestResult[] = [];
   const spinnerLbl = 'Querying vulnerabilities database...';
   try {
     const payloads = await assemblePayloads(root, options);
     for (const payload of payloads) {
       const payloadPolicy = payload.body && payload.body.policy;
       const depGraph = payload.body && payload.body.depGraph;
+      const pkgManager =
+        depGraph && depGraph.pkgManager && depGraph.pkgManager.name;
+      const targetFile = payload.body && payload.body.targetFile;
 
       let dockerfilePackages;
       if (
@@ -96,11 +104,15 @@ async function runTest(
       analytics.add('isDocker', !!(payload.body && payload.body.docker));
       // Type assertion might be a lie, but we are correcting that below
       let res = (await sendTestPayload(payload)) as LegacyVulnApiResult;
-      if (depGraph) {
+
+      // TODO: docker doesn't have a package manager
+      // so this flow will not be applicable
+      // refactor to separate
+      if (depGraph && pkgManager) {
         res = convertTestDepGraphResultToLegacy(
           (res as any) as TestDepGraphResponse, // Double "as" required by Typescript for dodgy assertions
           depGraph,
-          packageManager,
+          pkgManager,
           options.severityThreshold,
         );
 
@@ -170,7 +182,12 @@ async function runTest(
       }
 
       res.uniqueCount = countUniqueVulns(res.vulnerabilities);
-      results.push(res);
+
+      const result = {
+        ...res,
+        targetFile,
+      };
+      results.push(result);
     }
     return results;
   } catch (error) {
@@ -251,18 +268,10 @@ function assemblePayloads(
   return assembleRemotePayloads(root, options);
 }
 
-// Force getDepsFromPlugin to return scannedProjects for processing in assembleLocalPayload
-async function getDepsFromPlugin(
-  root,
-  options: Options,
-): Promise<pluginApi.MultiProjectResult> {
-  // don't override options.file if scanning multiple files at once
-  if (!options.scanAllUnmanaged) {
-    options.file = options.file || detect.detectPackageFile(root);
-  }
-  if (!options.docker && !(options.file || options.packageManager)) {
-    throw NoSupportedManifestsFoundError([...root]);
-  }
+async function getSinglePluginResult(
+  root: string,
+  options: Options & TestOptions,
+): Promise<pluginApi.InspectResult> {
   const plugin = plugins.loadPlugin(options.packageManager, options);
   const moduleInfo = ModuleInfo(plugin, options.policy);
   const inspectRes: pluginApi.InspectResult = await moduleInfo.inspect(
@@ -270,6 +279,97 @@ async function getDepsFromPlugin(
     options.file,
     { ...options },
   );
+  return inspectRes;
+}
+
+interface ScannedProjectCustom
+  extends cliInterface.legacyCommon.ScannedProject {
+  packageManager: SupportedPackageManagers;
+}
+
+async function getMultiPluginResult(
+  root: string,
+  options: Options & TestOptions,
+  targetFiles: string[],
+): Promise<pluginApi.MultiProjectResult> {
+  const allResults: ScannedProjectCustom[] = [];
+
+  for (const targetFile of targetFiles) {
+    const fileName = pathUtil.basename(targetFile);
+    options.file = fileName;
+    const packageManager = detectPackageManagerFromFile(fileName);
+    options.packageManager = packageManager;
+    try {
+      const inspectRes = await getSinglePluginResult(root, options);
+      let resultWithScannedProjects: pluginApi.MultiProjectResult;
+
+      if (!pluginApi.isMultiResult(inspectRes)) {
+        resultWithScannedProjects = {
+          plugin: inspectRes.plugin,
+          scannedProjects: [
+            {
+              depTree: inspectRes.package,
+              meta: inspectRes.meta,
+            },
+          ],
+        };
+      } else {
+        resultWithScannedProjects = inspectRes;
+      }
+
+      // annotate the package manager & targetFile to be used
+      // for test & monitor
+      const customScannedProject: ScannedProjectCustom[] = resultWithScannedProjects.scannedProjects.map(
+        (a) => {
+          (a as ScannedProjectCustom).targetFile = options.file;
+          (a as ScannedProjectCustom).packageManager = options.packageManager;
+          return a as ScannedProjectCustom;
+        },
+      );
+      allResults.push(...customScannedProject);
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  return {
+    plugin: {
+      name: 'custom-auto-detect',
+    },
+    scannedProjects: allResults,
+  };
+}
+
+// Force getDepsFromPlugin to return scannedProjects for processing in assembleLocalPayload
+async function getDepsFromPlugin(
+  root: string,
+  options: Options & TestOptions,
+): Promise<pluginApi.MultiProjectResult> {
+  let inspectRes: pluginApi.InspectResult;
+
+  if (options.allProjects) {
+    // auto-detect only one-level deep for now
+    const targetFiles = await find(root, [], AUTO_DETECTABLE_FILES, 1);
+    debug(
+      `auto detect manifest files, found ${targetFiles.length}`,
+      targetFiles,
+    );
+    if (targetFiles.length === 0) {
+      throw NoSupportedManifestsFoundError([root]);
+    }
+    inspectRes = await getMultiPluginResult(root, options, targetFiles);
+    return inspectRes;
+  } else {
+    // TODO: is this needed for the auto detect handling above?
+    // don't override options.file if scanning multiple files at once
+    if (!options.scanAllUnmanaged) {
+      options.file = options.file || detect.detectPackageFile(root);
+    }
+    if (!options.docker && !(options.file || options.packageManager)) {
+      throw NoSupportedManifestsFoundError([...root]);
+    }
+    inspectRes = await getSinglePluginResult(root, options);
+  }
 
   if (!pluginApi.isMultiResult(inspectRes)) {
     if (!inspectRes.package) {
@@ -333,6 +433,12 @@ async function assembleLocalPayloads(
       if (options['print-deps']) {
         await spinner.clear<void>(spinnerLbl)();
         maybePrintDeps(options, pkg);
+      }
+      const project = scannedProject as ScannedProjectCustom;
+      const packageManager =
+        project.packageManager || (deps.plugin && deps.plugin.packageManager);
+      if (packageManager) {
+        (options as any).packageManager = packageManager;
       }
       if (deps.plugin && deps.plugin.packageManager) {
         (options as any).packageManager = deps.plugin.packageManager;
@@ -440,7 +546,6 @@ async function assembleLocalPayloads(
           payload.modules = pkg as DepTreeFromResolveDeps; // See the output of resolve-deps
         }
       }
-
       payloads.push(payload);
     }
     return payloads;

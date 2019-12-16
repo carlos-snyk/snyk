@@ -8,10 +8,20 @@ import * as os from 'os';
 import * as _ from 'lodash';
 import { isCI } from './is-ci';
 import * as analytics from './analytics';
-import { DepTree, MonitorMeta, MonitorResult } from './types';
+import {
+  DepTree,
+  MonitorMeta,
+  MonitorResult,
+  MonitorOptions,
+  Options,
+} from './types';
 import * as projectMetadata from './project-metadata';
 import * as path from 'path';
-import { MonitorError, ConnectionTimeoutError, AuthFailedError } from './errors';
+import {
+  MonitorError,
+  ConnectionTimeoutError,
+  AuthFailedError,
+} from './errors';
 import { countPathsToGraphRoot, pruneGraph } from './prune';
 import { GRAPH_SUPPORTED_PACKAGE_MANAGERS } from './package-managers';
 import { legacyPlugin as pluginApi } from '@snyk/cli-interface';
@@ -140,6 +150,7 @@ export async function monitor(
   root: string,
   meta: MonitorMeta,
   info: pluginApi.SinglePackageResult,
+  options,
   targetFile?: string,
 ): Promise<MonitorResult> {
   apiTokenExists();
@@ -149,19 +160,23 @@ export async function monitor(
   analytics.add('packageManager', packageManager);
   analytics.add('isDocker', !!meta.isDocker);
 
-  if (
-    GRAPH_SUPPORTED_PACKAGE_MANAGERS.includes(packageManager)
-  ) {
+  if (GRAPH_SUPPORTED_PACKAGE_MANAGERS.includes(packageManager)) {
     const monitorGraphSupportedRes = await isFeatureFlagSupportedForOrg(
       _.camelCase('experimental-dep-graph'),
+      options.org || config.org,
     );
 
     if (monitorGraphSupportedRes.code === 401) {
-      throw AuthFailedError(monitorGraphSupportedRes.error, monitorGraphSupportedRes.code);
+      throw AuthFailedError(
+        monitorGraphSupportedRes.error,
+        monitorGraphSupportedRes.code,
+      );
     }
-
     if (monitorGraphSupportedRes.ok) {
       return await monitorGraph(root, meta, info, targetFile);
+    }
+    if (monitorGraphSupportedRes.userMessage) {
+      debug(monitorGraphSupportedRes.userMessage);
     }
   }
 

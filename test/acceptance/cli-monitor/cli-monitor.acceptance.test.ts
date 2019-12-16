@@ -326,19 +326,26 @@ test('`monitor yarn-package`', async (t) => {
   chdirWorkspaces();
   await cli.monitor('yarn-package');
   const req = server.popRequest();
-  const pkg = req.body.package;
   t.equal(req.method, 'PUT', 'makes PUT request');
   t.equal(
     req.headers['x-snyk-cli-version'],
     versionNumber,
     'sends version number',
   );
-  t.match(req.url, '/monitor/yarn', 'puts at correct url');
-  t.ok(pkg.dependencies.debug, 'dependency');
+  t.match(req.url, '/monitor/yarn/graph', 'puts at correct url');
+
+  const depGraphJSON = req.body.depGraphJSON;
+  t.ok(depGraphJSON);
+  const debug = depGraphJSON.pkgs.find((pkg) => pkg.info.name === 'debug');
+  const objectAssign = depGraphJSON.pkgs.find(
+    (pkg) => pkg.info.name === 'object-assign',
+  );
+
+  t.ok(debug, 'dependency');
   t.notOk(req.body.targetFile, 'doesnt send the targetFile');
-  t.notOk(pkg.dependencies['object-assign'], 'no dev dependency');
-  t.notOk(pkg.from, 'no "from" array on root');
-  t.notOk(pkg.dependencies.debug.from, 'no "from" array on dep');
+  t.notOk(objectAssign, 'no dev dependency');
+  t.notOk(depGraphJSON.from, 'no "from" array on root');
+  t.notOk(debug.from, 'no "from" array on dep');
   if (process.platform === 'win32') {
     t.true(
       req.body.targetFileRelativePath.endsWith(
@@ -360,19 +367,26 @@ test('`monitor yarn-package from within folder`', async (t) => {
   chdirWorkspaces('yarn-package');
   await cli.monitor();
   const req = server.popRequest();
-  const pkg = req.body.package;
   t.equal(req.method, 'PUT', 'makes PUT request');
   t.equal(
     req.headers['x-snyk-cli-version'],
     versionNumber,
     'sends version number',
   );
-  t.match(req.url, '/monitor/yarn', 'puts at correct url');
-  t.ok(pkg.dependencies.debug, 'dependency');
+  const depGraphJSON = req.body.depGraphJSON;
+  t.ok(depGraphJSON);
+  const debug = depGraphJSON.pkgs.find((pkg) => pkg.info.name === 'debug');
+  const objectAssign = depGraphJSON.pkgs.find(
+    (pkg) => pkg.info.name === 'object-assign',
+  );
+
+  t.ok(debug, 'dependency');
   t.notOk(req.body.targetFile, 'doesnt send the targetFile');
-  t.notOk(pkg.dependencies['object-assign'], 'no dev dependency');
-  t.notOk(pkg.from, 'no "from" array on root');
-  t.notOk(pkg.dependencies.debug.from, 'no "from" array on dep');
+  t.notOk(objectAssign, 'no dev dependency');
+  t.notOk(depGraphJSON.from, 'no "from" array on root');
+  t.notOk(debug.from, 'no "from" array on dep');
+
+  t.match(req.url, '/monitor/yarn/graph', 'puts at correct url');
   if (process.platform === 'win32') {
     t.true(
       req.body.targetFileRelativePath.endsWith(
@@ -456,13 +470,17 @@ test('`monitor yarn-package with dev dep flag`', async (t) => {
     versionNumber,
     'sends version number',
   );
-  t.match(req.url, '/monitor/yarn', 'puts at correct url');
+  t.match(req.url, '/monitor/yarn/graph', 'puts at correct url');
   t.notOk(req.body.targetFile, 'doesnt send the targetFile');
-  t.ok(req.body.package.dependencies.debug, 'dependency');
-  t.ok(
-    req.body.package.dependencies['object-assign'],
-    'includes dev dependency',
+  const depGraphJSON = req.body.depGraphJSON;
+  t.ok(depGraphJSON);
+  const debug = depGraphJSON.pkgs.find((pkg) => pkg.info.name === 'debug');
+  const objectAssign = depGraphJSON.pkgs.find(
+    (pkg) => pkg.info.name === 'object-assign',
   );
+
+  t.ok(debug, 'dependency');
+  t.ok(objectAssign, 'dev dependency');
 });
 
 test('`monitor ruby-app`', async (t) => {
@@ -622,7 +640,7 @@ test('`monitor yarn-app`', async (t) => {
     versionNumber,
     'sends version number',
   );
-  t.match(req.url, '/monitor/yarn', 'puts at correct url');
+  t.match(req.url, '/monitor/yarn/graph', 'puts at correct url');
   t.equal(pkg.name, 'yarn-app-one', 'specifies name');
   t.ok(pkg.dependencies.marked, 'specifies dependency');
   t.equal(pkg.dependencies.marked.name, 'marked', 'marked dep name');

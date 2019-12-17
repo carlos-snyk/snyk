@@ -426,6 +426,7 @@
     ],
     "patch": []
   },
+  "projectName": "ruby-app-policy",
   "targetFile": "Gemfile",
   "uniqueCount": 4,
   "path": "ruby-app-policy"

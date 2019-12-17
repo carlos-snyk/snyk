@@ -148,8 +148,11 @@ export const PythonTests: AcceptanceTests = {
         t.fail('should throw, since there are vulns');
       } catch (e) {
         t.equals(
-          e.message,
-          fs.readFileSync('pip-app-transitive-vuln/cli-output.txt', 'utf8'),
+          e.message.trim(),
+          fs.readFileSync(
+            'pip-app-transitive-vuln/cli-output.txt',
+            'utf8',
+          ).trim(),
         );
       }
       let req = params.server.popRequest();
@@ -213,11 +216,11 @@ export const PythonTests: AcceptanceTests = {
         t.fail('should throw, since there are vulns');
       } catch (e) {
         t.equals(
-          e.message,
+          e.message.trim(),
           fs.readFileSync(
             'pip-app-transitive-vuln/cli-output-actionable-remediation.txt',
             'utf8',
-          ),
+          ).trim(),
         );
       }
       let req = params.server.popRequest();

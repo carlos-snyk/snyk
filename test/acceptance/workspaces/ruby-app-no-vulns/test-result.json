@@ -8,6 +8,7 @@
   "packageManager": "rubygems",
   "policy": "# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.\nversion: v1.13.1\nignore: {}\npatch: {}\n",
   "ignoreSettings": null,
+  "projectName": "ruby-app-no-vulns",
   "summary": "No known vulnerabilities",
   "filesystemPolicy": false,
   "targetFile": "Gemfile",

@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as _ from 'lodash';
 import { AcceptanceTests } from './cli-test.acceptance.test';
-import { TestResult } from '../../../src/lib/snyk-test/legacy';
 import { getWorkspaceJSON } from '../workspace-helper';
 
 export const RubyTests: AcceptanceTests = {

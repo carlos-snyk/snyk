@@ -343,6 +343,7 @@
     "ignore": [],
     "patch": []
   },
+  "projectName": "ruby-app-thresholds",
   "targetFile": "Gemfile",
   "uniqueCount": 5,
   "path": "ruby-app-thresholds"

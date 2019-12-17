@@ -108,7 +108,7 @@ test(AllProjectsTests.language, async (t) => {
     t.test(
       testName,
       AllProjectsTests.tests[testName](
-        { server, versionNumber, cli },
+        { server, versionNumber, cli, plugins },
         { chdirWorkspaces },
       ),
     );

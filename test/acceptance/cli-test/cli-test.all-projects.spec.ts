@@ -45,6 +45,11 @@ export const AllProjectsTests: AcceptanceTests = {
         'Target file:       Gemfile.lock',
         'contains target file Gemfile.lock',
       );
+      t.match(
+        result,
+        'Project name:      shallow-goof',
+        'contains correct project name for npm',
+      );
       t.match(result, 'Package manager:   npm', 'contains package manager npm');
       t.match(
         result,

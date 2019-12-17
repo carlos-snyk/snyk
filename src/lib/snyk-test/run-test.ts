@@ -91,7 +91,9 @@ async function runTest(
       const pkgManager =
         depGraph && depGraph.pkgManager && depGraph.pkgManager.name;
       const targetFile = payload.body && payload.body.targetFile;
-      const projectName = _.get(payload, 'body.projectNameOverride') || _.get(payload, 'body.originalProjectName');
+      const projectName =
+        _.get(payload, 'body.projectNameOverride') ||
+        _.get(payload, 'body.originalProjectName');
 
       let dockerfilePackages;
       if (

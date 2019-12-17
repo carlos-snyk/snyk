@@ -34,7 +34,9 @@ const DETECTABLE_FILES: string[] = [
 export const AUTO_DETECTABLE_FILES: string[] = [
   'package-lock.json',
   'yarn.lock',
+  'package.json',
   'Gemfile.lock',
+  'Gemfile',
 ];
 
 // when file is specified with --file, we look it up here

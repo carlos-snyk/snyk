@@ -1,15 +1,21 @@
-import * as _ from 'lodash';
 import { AcceptanceTests } from './cli-test.acceptance.test';
 import { getWorkspaceJSON } from '../workspace-helper';
+import * as sinon from 'sinon';
 
 export const AllProjectsTests: AcceptanceTests = {
-  language: 'Ruby & Npm',
+  language: 'Mixed (Ruby & Npm)',
   tests: {
-    '`test mono-repo-project --all-projects`': (params, utils) => async (t) => {
+    '`test mono-repo-project with lockfiles --all-projects`': (params, utils) => async (t) => {
       utils.chdirWorkspaces();
+      const spyPlugin = sinon.spy(params.plugins, 'loadPlugin');
+      t.teardown(spyPlugin.restore);
+
       const result = await params.cli.test('mono-repo-project', {
         allProjects: true,
       });
+      t.ok(spyPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
+      t.ok(spyPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
+
       params.server.popRequests(2).forEach((req) => {
         t.equal(req.method, 'POST', 'makes POST request');
         t.equal(
@@ -115,6 +121,7 @@ export const AllProjectsTests: AcceptanceTests = {
         );
       }
     },
+
     '`test empty --all-projects`': (params, utils) => async (t) => {
       utils.chdirWorkspaces();
       try {

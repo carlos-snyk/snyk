@@ -5,7 +5,10 @@ import * as sinon from 'sinon';
 export const AllProjectsTests: AcceptanceTests = {
   language: 'Mixed (Ruby & Npm)',
   tests: {
-    '`test mono-repo-project with lockfiles --all-projects`': (params, utils) => async (t) => {
+    '`test mono-repo-project with lockfiles --all-projects`': (
+      params,
+      utils,
+    ) => async (t) => {
       utils.chdirWorkspaces();
       const spyPlugin = sinon.spy(params.plugins, 'loadPlugin');
       t.teardown(spyPlugin.restore);

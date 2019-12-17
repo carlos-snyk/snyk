@@ -58,6 +58,7 @@ interface PayloadBody {
   targetFile?: string;
   projectNameOverride?: string;
   hasDevDependencies?: boolean;
+  originalProjectName?: string; // used only for display
   docker?: any;
   target?: GitTarget | null;
 }
@@ -90,6 +91,7 @@ async function runTest(
       const pkgManager =
         depGraph && depGraph.pkgManager && depGraph.pkgManager.name;
       const targetFile = payload.body && payload.body.targetFile;
+      const projectName = _.get(payload, 'body.projectNameOverride') || _.get(payload, 'body.originalProjectName');
 
       let dockerfilePackages;
       if (
@@ -182,10 +184,10 @@ async function runTest(
       }
 
       res.uniqueCount = countUniqueVulns(res.vulnerabilities);
-
       const result = {
         ...res,
         targetFile,
+        projectName,
       };
       results.push(result);
     }
@@ -489,6 +491,7 @@ async function assembleLocalPayloads(
       let body: PayloadBody = {
         targetFile: pkg.targetFile,
         projectNameOverride: options.projectName,
+        originalProjectName: pkg.name,
         policy: policy && policy.toString(),
         docker: pkg.docker,
         hasDevDependencies: (pkg as any).hasDevDependencies,

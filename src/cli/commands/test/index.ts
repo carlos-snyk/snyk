@@ -565,10 +565,10 @@ function metaForDisplay(res, options) {
       chalk.bold(rightPadWithSpaces('Target file: ', padToLength)) + targetFile,
     );
   }
-  if (options.projectName) {
+  if (res.projectName) {
     meta.push(
       chalk.bold(rightPadWithSpaces('Project name: ', padToLength)) +
-        options.projectName,
+        res.projectName,
     );
   }
   if (options.docker) {

@@ -317,8 +317,12 @@ async function getMultiPluginResult(
         resultWithScannedProjects = inspectRes;
       }
 
-      // annotate the package manager & targetFile to be used
+      // annotate the package manager, project name & targetFile to be used
       // for test & monitor
+      // TODO: refactor how we display meta to not have to do this
+      (options as any).projectNames = resultWithScannedProjects.scannedProjects.map(
+        (scannedProject) => scannedProject.depTree.name,
+      );
       const customScannedProject: ScannedProjectCustom[] = resultWithScannedProjects.scannedProjects.map(
         (a) => {
           (a as ScannedProjectCustom).targetFile = options.file;
@@ -370,7 +374,6 @@ async function getDepsFromPlugin(
     }
     inspectRes = await getSinglePluginResult(root, options);
   }
-
   if (!pluginApi.isMultiResult(inspectRes)) {
     if (!inspectRes.package) {
       // something went wrong if both are not present...
